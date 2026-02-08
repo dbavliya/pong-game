@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ping Pong Game</title>
+<style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body {
+        margin: 0;
+        background: url("background.jpg") no-repeat center center fixed;
+        background-size: cover;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .overlay {
+        background: rgba(0,0,0,0.75);
+        width: 900px;
+        border-radius: 12px;
+        padding: 20px;
+        color: #fff;
+        box-shadow: 0 0 20px rgba(0,0,0,0.6);
+    }
+    h1 { text-align: center; }
+    canvas {
+        display: block;
+        margin: auto;
+        background: #000;
+        border-radius: 8px;
+        border: 2px solid #fff;
+    }
+    .scoreboard {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        font-size: 18px;
+    }
+    .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.85);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10;
+    }
+    .modal-content {
+        background: #111;
+        padding: 25px;
+        border-radius: 10px;
+        width: 320px;
+        text-align: center;
+        color: #fff;
+    }
+    .modal-content input,
+    .modal-content select,
+    .modal-content button {
+        width: 100%;
+        padding: 10px;
+        margin: 8px 0;
+        border-radius: 6px;
+        border: none;
+    }
+    .modal-content button {
+        background: #28a745;
+        color: #fff;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    .end-buttons button {
+        margin-top: 10px;
+        background: #007bff;
+    }
+    .quit { background: #dc3545 !important; }
+</style>
+</head>
+<body>
+
+<div class="overlay">
+    <h1>🏓 Ping Pong</h1>
+    <canvas id="game" width="860" height="400"></canvas>
+    <div class="scoreboard">
+        <div id="playerScore"></div>
+        <div id="computerScore"></div>
+    </div>
+</div>
+
+<!-- Start Modal -->
+<div class="modal" id="startModal">
+    <div class="modal-content">
+        <h2>Game Setup</h2>
+        <input id="playerName" placeholder="Enter your name">
+        <input id="maxPoints" type="number" value="5" min="1">
+        <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+</div>
+
+<!-- End Modal -->
+<div class="modal" id="endModal" style="display:none;">
+    <div class="modal-content">
+        <h2 id="endMessage"></h2>
+        <canvas id="confetti" width="300" height="200"></canvas>
+        <div class="end-buttons">
+            <button onclick="restart()">Play Again</button>
+            <button class="quit" onclick="window.close()">Quit</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player = { x: 10, y: 150, w: 10, h: 80, score: 0 };
+let ai = { x: 840, y: 150, w: 10, h: 80, score: 0 };
+let ball = { x: 430, y: 200, r: 7, vx: 4, vy: 4 };
+
+let up = false, down = false;
+let maxScore = 5;
+let playerName = "";
+
+// Difficulty settings
+let difficultySettings = {
+    easy:   { aiSpeed: 3, ballSpeed: 4, reaction: 0.03 },
+    medium: { aiSpeed: 5, ballSpeed: 6, reaction: 0.05 },
+    hard:   { aiSpeed: 7, ballSpeed: 8, reaction: 0.08 }
+};
+
+let aiSpeed = 5;
+let aiReaction = 0.05;
+
+document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp") up = true;
+    if (e.key === "ArrowDown") down = true;
+});
+document.addEventListener("keyup", e => {
+    if (e.key === "ArrowUp") up = false;
+    if (e.key === "ArrowDown") down = false;
+});
+
+function startGame() {
+    playerName = document.getElementById("playerName").value || "Player";
+    maxScore = parseInt(document.getElementById("maxPoints").value);
+
+    const level = document.getElementById("difficulty").value;
+    const settings = difficultySettings[level];
+
+    aiSpeed = settings.aiSpeed;
+    aiReaction = settings.reaction;
+    ball.vx = settings.ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+    ball.vy = settings.ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+
+    document.getElementById("startModal").style.display = "none";
+    updateScore();
+    requestAnimationFrame(gameLoop);
+}
+
+function updateScore() {
+    document.getElementById("playerScore").innerText = `${playerName}: ${player.score}`;
+    document.getElementById("computerScore").innerText = `Computer: ${ai.score}`;
+}
+
+function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.vx *= -1;
+}
+
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Player movement
+    if (up) player.y -= 6;
+    if (down) player.y += 6;
+    player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+
+    // AI movement (difficulty-based)
+    ai.y += (ball.y - (ai.y + ai.h / 2)) * aiReaction * aiSpeed;
+    ai.y = Math.max(0, Math.min(canvas.height - ai.h, ai.y));
+
+    // Ball movement
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) {
+        ball.vy *= -1;
+    }
+
+    if (collision(player) || collision(ai)) {
+        ball.vx *= -1;
+    }
+
+    if (ball.x < 0) { ai.score++; resetBall(); }
+    if (ball.x > canvas.width) { player.score++; resetBall(); }
+
+    updateScore();
+
+    if (player.score === maxScore || ai.score === maxScore) {
+        endGame();
+        return;
+    }
+
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+function collision(p) {
+    return (
+        ball.x - ball.r < p.x + p.w &&
+        ball.x + ball.r > p.x &&
+        ball.y > p.y &&
+        ball.y < p.y + p.h
+    );
+}
+
+function draw() {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    ctx.fillRect(ai.x, ai.y, ai.w, ai.h);
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function endGame() {
+    document.getElementById("endModal").style.display = "flex";
+    const msg = document.getElementById("endMessage");
+
+    if (player.score > ai.score) {
+        msg.innerText = `🎉 Congratulations ${playerName}, You Won!`;
+        startConfetti();
+    } else {
+        msg.innerText = `😞 Computer Wins! Try Again?`;
+    }
+}
+
+function restart() { location.reload(); }
+
+// Confetti
+function startConfetti() {
+    const c = document.getElementById("confetti");
+    const ctx = c.getContext("2d");
+    let pieces = Array.from({ length: 100 }, () => ({
+        x: Math.random() * c.width,
+        y: Math.random() * c.height,
+        r: Math.random() * 4 + 2,
+        dy: Math.random() * 3 + 1
+    }));
+
+    function animate() {
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.fillStyle = "gold";
+        pieces.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            p.y += p.dy;
+            if (p.y > c.height) p.y = 0;
+        });
+        requestAnimationFrame(animate);
+    }
+    animate();
+}
+</script>
+
+</body>
+</html>
